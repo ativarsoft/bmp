@@ -100,4 +100,11 @@ package body Bmp is
       return BMP;
    end Load_Image;
 
+   function Get_Data (BMP : in out BMP_Type)
+      return BMP_Data
+   is
+   begin
+      return BMP.Data;
+   end Get_Data;
+
 end Bmp;

@@ -4,12 +4,7 @@ use Interfaces;
 
 package Bmp is
 
-   type BMP_Type is private;
-
-   function Load_Image (Filename : String)
-      return BMP_Type;
-
-private
+   type BMP_Type is tagged private;
 
    subtype Byte is Unsigned_8;
 
@@ -18,6 +13,13 @@ private
        Element_Type => Byte);
 
    subtype BMP_Data is BMP_Data_Vectors.Vector;
+
+   function Load_Image (Filename : String)
+      return BMP_Type;
+
+   function Get_Data (BMP : in out BMP_Type) return BMP_Data;
+
+private
 
    type BMP_Type is tagged record
       Data : BMP_Data;
