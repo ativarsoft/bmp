@@ -2,3 +2,8 @@
 /lib/
 /alire/
 /config/
+*.ali
+*.o
+*.a
+*.dll
+b~*.ad[b,s]
