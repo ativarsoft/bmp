@@ -28,11 +28,24 @@ package body Bmp is
 
       Put ("  ");
       Put ("Signature           : ");
-      Put_Line (BMP.Signature'Image);
+      Put (BMP.Signature'Image);
+      Put (" ");
+      Put ("(");
+      case BMP.Signature is
+         when 16#4D42# =>
+            Put ("BM");
+         when others =>
+            Put ("Unknown");
+      end case;
+      Put (")");
+      New_Line;
 
       Put ("  ");
       Put ("File size           : ");
-      Put_Line (BMP.File_Size'Image);
+      Put (BMP.File_Size'Image);
+      Put (" ");
+      Put ("bytes");
+      New_Line;
 
       Put ("  ");
       Put ("Offset of pixel data: ");
@@ -47,31 +60,102 @@ package body Bmp is
 
       Put ("  ");
       Put ("Header size: ");
-      Put_Line (DIB.Header_Size'Image);
+      Put (DIB.Header_Size'Image);
+      Put (" ");
+      Put ("(");
+      case DIB.Header_Size is
+         when 12 =>
+            Put ("BITMAPCOREHEADER OS21XBITMAPHEADER");
+         when 64 =>
+            Put ("OS22XBITMAPHEADER");
+         when 16 =>
+            Put ("OS22XBITMAPHEADER");
+         when 40 =>
+            Put ("BITMAPINFOHEADER");
+         when 52 =>
+            Put ("BITMAPV2INFOHEADER");
+         when 56 =>
+            Put ("BITMAPV3INFOHEADER");
+         when 108 =>
+            Put ("BITMAPV4HEADER");
+         when 124 =>
+            Put ("BITMAPV5HEADER");
+         when others =>
+            Put ("Unknown");
+      end case;
+      Put (")");
+      New_Line;
 
       Put ("  ");
       Put ("Width      : ");
-      Put_Line (DIB.Width'Image);
+      Put (DIB.Width'Image);
+      Put (" ");
+      Put ("pixels");
+      New_Line;
 
       Put ("  ");
       Put ("Height     : ");
-      Put_Line (DIB.Height'Image);
+      Put (DIB.Height'Image);
+      Put (" ");
+      Put ("pixels");
+      New_Line;
 
       Put ("  ");
       Put ("Plane count: ");
-      Put_Line (DIB.Plane_Count'Image);
+      Put (DIB.Plane_Count'Image);
+      Put (" ");
+      if DIB.Plane_Count = 1 then
+         Put ("(OK)");
+      else
+         Put ("(INVALID)");
+      end if;
+      New_Line;
 
       Put ("  ");
       Put ("BPP        : ");
-      Put_Line (DIB.BPP'Image);
+      Put (DIB.BPP'Image);
+      Put (" ");
+      Put ("bytes");
+      New_Line;
 
       Put ("  ");
       Put ("Compression: ");
-      Put_Line (DIB.Compression'Image);
+      Put (DIB.Compression'Image);
+      Put (" ");
+      Put ("(");
+      case DIB.Compression is
+         when 0 =>
+            Put ("BI_RGB");
+         when 1 =>
+            Put ("BI_RLE8");
+         when 2 =>
+            Put ("BI_RLE4");
+         when 3 =>
+            Put ("BI_BITFIELDS");
+         when 4 =>
+            Put ("BI_JPEG");
+         when 5 =>
+            Put ("BI_PNG");
+         when 6 =>
+            Put ("BI_ALPHABITFIELDS");
+         when 11 =>
+            Put ("BI_CMYK");
+         when 12 =>
+            Put ("BI_CMYKRLE8");
+         when 13 =>
+            Put ("BI_CMYKRLE4");
+         when others =>
+            Put ("Unknown");
+      end case;
+      Put (")");
+      New_Line;
 
       Put ("  ");
       Put ("Image size : ");
-      Put_Line (DIB.Image_Size'Image);
+      Put (DIB.Image_Size'Image);
+      Put (" ");
+      Put ("bytes");
+      New_Line;
    end Print;
 
    function Read_BMP_Header
