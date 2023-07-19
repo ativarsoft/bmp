@@ -1,8 +1,12 @@
 with Ada.Streams.Stream_IO;
 use Ada.Streams.Stream_IO;
 with Ada.Text_IO;
+with Ada.Exceptions;
+use Ada.Exceptions;
 
 package body Bmp is
+
+   Invalid_Compression_Value : exception;
 
    type BMP_Header_Type is tagged record
       Signature    : Unsigned_16;
@@ -220,6 +224,72 @@ package body Bmp is
       return Valid;
    end Check_Signature;
 
+   procedure Read_Uncompressed_Data
+      (BMP        : in out BMP_Type;
+       S          : Ada.Streams.Stream_IO.Stream_Access;
+       Image_Size : Natural)
+   is
+      C             : Unsigned_8;
+   begin
+      for I in 1 .. Image_Size loop
+         Unsigned_8'Read (S, C);
+         BMP.Data.Append (C);
+      end loop;
+   end Read_Uncompressed_Data;
+
+   procedure Read_RLE8_Data
+      (BMP        : in out BMP_Type;
+       S          : Ada.Streams.Stream_IO.Stream_Access;
+       Image_Size : Natural;
+       Width      : Natural)
+   is
+      use Ada.Text_IO;
+
+      Runlength     : Unsigned_8;
+      C             : Unsigned_8;
+      I             : Natural := 0;
+      Line_Position : Natural := 0;
+      Delta_Compression_Value         : Unsigned_16;
+   begin
+      while I < Image_Size loop
+         Unsigned_8'Read (S, Runlength);
+         if Runlength = 0 then
+            Unsigned_8'Read (S, C);
+            case C is
+               when 0 =>
+                  Put_Line ("End of line.");
+                  for J in 1 .. Width - Line_Position loop
+                     BMP.Data.Append (0);
+                  end loop;
+               when 1 =>
+                  Put_Line ("End of bitmap.");
+                  return;
+               when 2 =>
+                  Put_Line ("Delta");
+                  Unsigned_16'Read (S, Delta_Compression_Value);
+                  for J in 1 .. Natural (Delta_Compression_Value) loop
+                     BMP.Data.Append (0);
+                  end loop;
+                  --  raise Program_Error with "Delta compression is currently unimplemented.";
+               when others =>
+                  for J in 1 .. Runlength loop
+                     Unsigned_8'Read (S, C);
+                     BMP.Data.Append (C);
+                  end loop;
+                  Line_Position := Line_Position + Natural (Runlength);
+                  if Line_Position >= Width then
+                     Line_Position := Line_Position - Width;
+                  end if;
+                  I := I + Natural (Runlength);
+            end case;
+         end if;
+      end loop;
+   exception
+      when E : others =>
+         Put_Line (Exception_Message (E));
+         Put_Line ("Error reading pixel data at position " & I'Image & ".");
+   end Read_RLE8_Data;
+
    function Load_Image (Filename : String)
       return BMP_Type
    is
@@ -227,7 +297,6 @@ package body Bmp is
       File          : Ada.Streams.Stream_IO.File_Type;
       BMP_Header    : BMP_Header_Type;
       DIB           : DIB_Header_Type;
-      C             : Unsigned_8;
       S             : Ada.Streams.Stream_IO.Stream_Access;
    begin
       Ada.Text_IO.Put ("Loading bitmap: ");
@@ -251,10 +320,16 @@ package body Bmp is
       Ada.Streams.Stream_IO.Set_Index
          (File,
           Ada.Streams.Stream_IO.Count (BMP_Header.Offset_Pixels));
-      for I in 1 .. DIB.Image_Size loop
-         Unsigned_8'Read (S, C);
-         BMP.Data.Append (C);
-      end loop;
+      case DIB.Compression is
+         when 0 =>
+            BMP.Read_Uncompressed_Data
+               (S, Natural (DIB.Image_Size));
+         when 1 =>
+            BMP.Read_RLE8_Data
+               (S, Natural (DIB.Image_Size), Natural (DIB.Width));
+         when others =>
+            raise Invalid_Compression_Value with "Compression value " & DIB.Compression'Image & " is unrecognized.";
+      end case;
       Ada.Streams.Stream_IO.Close (File);
       return BMP;
    end Load_Image;
