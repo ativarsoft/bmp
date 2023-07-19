@@ -27,6 +27,8 @@ package Bmp is
 
    function Get_Depth (BMP : in out BMP_Type) return Natural;
 
+   function Is_Compressed (BMP : in out BMP_Type) return Boolean;
+
 private
 
    type BMP_Type is tagged record
@@ -34,6 +36,7 @@ private
       Width, Height : Natural;
       Plane_Count   : Natural;
       Depth         : Natural;
+      Is_Compressed : Boolean;
    end record;
 
 end Bmp;

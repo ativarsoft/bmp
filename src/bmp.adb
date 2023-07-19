@@ -381,11 +381,18 @@ package body Bmp is
 
                   --  Put_Line ("End of line.");
                   for J in 1 .. Width - Line_Position loop
-                     BMP.Data.Append (0);
+                     --  BMP.Data.Append (0);
+                     null;
                   end loop;
+
+                  Line_Position := 0;
 
                when 1 =>
                   Put_Line ("End of bitmap.");
+                  while Natural (BMP.Data.Length) <= Area loop
+                     BMP.Data.Append (0);
+                     null;
+                  end loop;
                   return;
                when 2 =>
 
@@ -400,9 +407,12 @@ package body Bmp is
                   begin
                      for J in 1 .. Difference loop
                         BMP.Data.Append (0);
+                        null;
                      end loop;
                      I := I + Difference;
                   end;
+
+                  Line_Position := Line_Position + Natural (Move_Right);
 
                when others =>
                   --  Absolute mode
@@ -448,6 +458,7 @@ package body Bmp is
                BMP.Data.Append (Color);
             end loop;
 
+            Line_Position := Line_Position + Natural (Runlength);
             I := I + Natural (Runlength);
 
          end if;
@@ -577,5 +588,13 @@ package body Bmp is
    begin
       return BMP.Depth;
    end Get_Depth;
+
+   function Is_Compressed
+      (BMP : in out BMP_Type)
+       return Boolean
+   is
+   begin
+      return BMP.Is_Compressed;
+   end Is_Compressed;
 
 end Bmp;
