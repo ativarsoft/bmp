@@ -8,11 +8,9 @@ package Bmp is
 
    type BMP_Type is tagged private;
 
-   subtype Byte is Unsigned_8;
-
    package BMP_Data_Vectors is new Ada.Containers.Vectors
       (Index_Type => Natural,
-       Element_Type => Byte);
+       Element_Type => Unsigned_32);
 
    subtype BMP_Data is BMP_Data_Vectors.Vector;
 
