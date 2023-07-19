@@ -10,6 +10,8 @@ package body Bmp is
 
    Invalid_Compression_Value : exception;
 
+   BMP_Header_Size : constant := 10;
+
    type BMP_Header_Type is tagged record
       Signature    : Unsigned_16;
       File_Size    : Unsigned_32;
@@ -252,8 +254,9 @@ package body Bmp is
       --  Length : Natural := 2 ** BMP.Get_Depth;
       Length : constant Natural := 256;
    begin
-      for I in 1 .. Length loop
+      for I in 0 .. Length loop
          Unsigned_32'Read (S, Color);
+         Color := Color and 16#00FFFFFF#;
          Color_Table.Data.Append (Color);
       end loop;
       return Color_Table;
@@ -265,7 +268,7 @@ package body Bmp is
        return Unsigned_32
    is
    begin
-      return Color_Table.Data (Color_Table.Data.First_Index + Index);
+      return Color_Table.Data (Color_Table.Data.First_Index + Index + 1);
    end Get_Color;
 
    procedure Read_RGB8_Data
@@ -515,6 +518,11 @@ package body Bmp is
          BMP.Data.Reserve_Capacity
             (Ada.Containers.Count_Type (Area));
       end if;
+
+      --  Seek to the end of the DIB header
+      Ada.Streams.Stream_IO.Set_Index
+         (File,
+          Ada.Streams.Stream_IO.Count (BMP_Header_Size + DIB.Header_Size) + 1);
 
       --  Color table comes right after the DIB header
       if DIB.BPP /= 8 then
