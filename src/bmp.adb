@@ -1,3 +1,5 @@
+--  Copyright (C) 2023 Mateus de Lima Oliveira
+
 with Ada.Streams.Stream_IO;
 use Ada.Streams.Stream_IO;
 with Ada.Text_IO;
