@@ -121,7 +121,7 @@ package body Bmp is
       Put ("BPP        : ");
       Put (DIB.BPP'Image);
       Put (" ");
-      Put ("bytes");
+      Put ("bits");
       New_Line;
 
       Put ("  ");
@@ -233,6 +233,15 @@ package body Bmp is
       Data : Color_Vectors.Vector;
    end record;
 
+   function Null_Color_Table
+      return Color_Table_Type
+   is
+      Color_Table : constant Color_Table_Type :=
+         (Data => Color_Vectors.Empty_Vector);
+   begin
+      return Color_Table;
+   end Null_Color_Table;
+
    function Read_Color_Table
       (BMP : in out BMP_Type;
        S   : Ada.Streams.Stream_IO.Stream_Access)
@@ -240,7 +249,8 @@ package body Bmp is
    is
       Color_Table : Color_Table_Type;
       Color : Unsigned_32;
-      Length : Natural := 2 ** BMP.Get_Depth;
+      --  Length : Natural := 2 ** BMP.Get_Depth;
+      Length : constant Natural := 256;
    begin
       for I in 1 .. Length loop
          Unsigned_32'Read (S, Color);
@@ -255,31 +265,85 @@ package body Bmp is
        return Unsigned_32
    is
    begin
-      return Color_Table.Data (Index);
+      return Color_Table.Data (Color_Table.Data.First_Index + Index);
    end Get_Color;
+
+   procedure Read_RGB8_Data
+      (BMP         : in out BMP_Type;
+       S           : Ada.Streams.Stream_IO.Stream_Access;
+       Area  : Natural;
+       Color_Table : in out Color_Table_Type)
+   is
+      C : Unsigned_8;
+      Color : Unsigned_32;
+   begin
+      for I in 1 .. Area loop
+         Unsigned_8'Read (S, C);
+         Color := Color_Table.Get_Color (Natural (C));
+         BMP.Data.Append (Color);
+      end loop;
+   end Read_RGB8_Data;
 
    procedure Read_RGB32_Data
       (BMP        : in out BMP_Type;
        S          : Ada.Streams.Stream_IO.Stream_Access;
-       Image_Size : Natural)
+       Area : Natural)
    is
       C             : Unsigned_32;
    begin
-      for I in 1 .. Image_Size loop
+      for I in 1 .. Area loop
          Unsigned_32'Read (S, C);
          BMP.Data.Append (C);
       end loop;
    end Read_RGB32_Data;
 
-   procedure Read_Uncompressed_Data
+   procedure Read_RGB24_Data
       (BMP        : in out BMP_Type;
        S          : Ada.Streams.Stream_IO.Stream_Access;
-       Image_Size : Natural)
+       Area : Natural)
    is
+      Next_8        : Unsigned_8;
+      C             : Unsigned_32;
+      Color         : Unsigned_32;
+   begin
+      for I in 1 .. Area loop
+         --  TODO: perform shift operations.
+         Color := 0;
+
+         Unsigned_8'Read (S, Next_8);
+         C := Unsigned_32 (Next_8);
+         Color := Color or C;
+
+         Unsigned_8'Read (S, Next_8);
+         C := Unsigned_32 (Next_8);
+         Color := Color or C;
+
+         Unsigned_8'Read (S, Next_8);
+         C := Unsigned_32 (Next_8);
+         Color := Color or C;
+
+         BMP.Data.Append (Color);
+      end loop;
+   end Read_RGB24_Data;
+
+   procedure Read_Uncompressed_Data
+      (BMP         : in out BMP_Type;
+       S           : Ada.Streams.Stream_IO.Stream_Access;
+       Area  : Natural;
+       Color_Table : in out Color_Table_Type)
+   is
+      use Ada.Text_IO;
    begin
       case BMP.Depth is
+         when 8  =>
+            Put_Line ("Reading RGB8 data.");
+            BMP.Read_RGB8_Data (S, Area, Color_Table);
+         when 24 =>
+            Put_Line ("Reading RGB24 data.");
+            BMP.Read_RGB24_Data (S, Area);
          when 32 =>
-            BMP.Read_RGB32_Data (S, Image_Size);
+            Put_Line ("Reading RGB32 data.");
+            BMP.Read_RGB32_Data (S, Area);
          when others =>
             raise Program_Error with "Unsupported image depth.";
       end case;
@@ -289,6 +353,7 @@ package body Bmp is
       (BMP         : in out BMP_Type;
        S           : Ada.Streams.Stream_IO.Stream_Access;
        Image_Size  : Natural;
+       Height      : Natural;
        Width       : Natural;
        Color_Table : in out Color_Table_Type)
    is
@@ -296,52 +361,95 @@ package body Bmp is
 
       Runlength     : Unsigned_8;
       C             : Unsigned_8;
+      Move_Right    : Unsigned_8;
+      Move_Up       : Unsigned_8;
       Color         : Unsigned_32;
       I             : Natural := 0;
       Line_Position : Natural := 0;
-      Delta_Compression_Value : Unsigned_16;
       Absolute_Mode_Length    : Unsigned_8;
+      Area : constant Natural := Width * Height;
    begin
-      while I < Image_Size loop
+      --  while (I < Image_Size) and (Natural (BMP.Data.Capacity) < Area) loop
+      loop
          Unsigned_8'Read (S, Runlength);
+         I := I + 1;
          if Runlength = 0 then
             Unsigned_8'Read (S, C);
+            I := I + 1;
             case C is
                when 0 =>
-                  Put_Line ("End of line.");
+
+                  --  Put_Line ("End of line.");
                   for J in 1 .. Width - Line_Position loop
                      BMP.Data.Append (0);
                   end loop;
+
                when 1 =>
                   Put_Line ("End of bitmap.");
                   return;
                when 2 =>
-                  Put_Line ("Delta");
-                  Unsigned_16'Read (S, Delta_Compression_Value);
-                  for J in 1 .. Natural (Delta_Compression_Value) loop
-                     BMP.Data.Append (0);
-                  end loop;
-                  --  raise Program_Error with "Delta compression is currently unimplemented.";
+
+                  --  Put_Line ("Delta");
+
+                  Unsigned_8'Read (S, Move_Right);
+                  Unsigned_8'Read (S, Move_Up);
+                  I := I + 2;
+
+                  declare
+                     Difference : Natural := Natural (Move_Up) * BMP.Width + Natural (Move_Right);
+                  begin
+                     for J in 1 .. Difference loop
+                        BMP.Data.Append (0);
+                     end loop;
+                     I := I + Difference;
+                  end;
+
                when others =>
                   --  Absolute mode
+
+                  --  Put_Line ("Absolute data");
+
+                  --  Read absolute mode length
                   Absolute_Mode_Length := C;
+
                   for J in 1 .. Absolute_Mode_Length loop
                      Unsigned_8'Read (S, C);
+                     --  Get color from color table by using C as an index
                      Color := Color_Table.Get_Color (Natural (C));
                      BMP.Data.Append (Color);
                   end loop;
-                  Line_Position := Line_Position + Natural (Runlength);
+                  I := I + Natural (Absolute_Mode_Length);
+                  --  Put ("Length is ");
+                  --  Put_Line (Absolute_Mode_Length'Image);
+                  if Absolute_Mode_Length rem 2 /= 0 then
+                     --  Ignore padding byte.
+                     --  Put_Line ("Reading padding byte.");
+                     Unsigned_8'Read (S, C);
+                     I := I + 1;
+                  end if;
+                  Line_Position := Line_Position +
+                     Natural (Absolute_Mode_Length);
                   if Line_Position >= Width then
                      Line_Position := Line_Position - Width;
                   end if;
-                  I := I + Natural (Runlength);
             end case;
-            else
-               for J in 1 .. Runlength loop
-                  Unsigned_8'Read (S, C);
-                  Color := Color_Table.Get_Color (Natural (C));
-                  BMP.Data.Append (Color);
-               end loop;
+         else
+
+            --  Put_Line ("Compressed data");
+
+            Unsigned_8'Read (S, C);
+            Color := Color_Table.Get_Color (Natural (C));
+
+            --  Put ("Color index: ");
+            --  Put_Line (C'Image);
+
+            for J in 1 .. Runlength loop
+               --  Get color from color table by using C as an index
+               BMP.Data.Append (Color);
+            end loop;
+
+            I := I + Natural (Runlength);
+
          end if;
       end loop;
    exception
@@ -358,44 +466,76 @@ package body Bmp is
       BMP_Header    : BMP_Header_Type;
       DIB           : DIB_Header_Type;
       S             : Ada.Streams.Stream_IO.Stream_Access;
+      Color_Table   : Color_Table_Type;
+      Area          : Natural;
    begin
+
+      --  Debug information
       Ada.Text_IO.Put ("Loading bitmap: ");
       Ada.Text_IO.Put_Line (Filename);
+
+      --  Open the file
       Ada.Streams.Stream_IO.Open
          (File, Ada.Streams.Stream_IO.In_File, Filename);
+      --  Downcast the class to an abstract stream type
       S := Ada.Streams.Stream_IO.Stream (File);
+
+      --  Read the BMP header
       BMP_Header := Read_BMP_Header (S);
       BMP_Header.Print;
       if Check_Signature (BMP_Header) = False then
          raise Program_Error with "Invalid bimap signature.";
       end if;
+
+      --  Read the DIB header
       DIB := Read_DIB_Header (S);
       DIB.Print;
       BMP.Width := Natural (DIB.Width);
       BMP.Height := Natural (DIB.Height);
       BMP.Plane_Count := Natural (DIB.Plane_Count);
       BMP.Depth := Natural (DIB.BPP);
-      BMP.Data.Reserve_Capacity
-         (Ada.Containers.Count_Type (DIB.Image_Size));
+
+      --  Allocate memory for image data
+      Area := Natural (DIB.Width) * Natural (DIB.Height);
+      if Natural (DIB.Image_Size) > Area then
+         BMP.Data.Reserve_Capacity
+            (Ada.Containers.Count_Type (DIB.Image_Size));
+      else
+         BMP.Data.Reserve_Capacity
+            (Ada.Containers.Count_Type (Area));
+      end if;
+
+      --  Color table comes right after the DIB header
+      if DIB.BPP /= 8 then
+         Color_Table := Null_Color_Table;
+      else
+         --  Read the color table if the color depth is 8
+         Color_Table := BMP.Read_Color_Table (S);
+      end if;
+
+      --  Seek to the start of the raw bitmap data
       Ada.Streams.Stream_IO.Set_Index
          (File,
-          Ada.Streams.Stream_IO.Count (BMP_Header.Offset_Pixels));
+          Ada.Streams.Stream_IO.Count (BMP_Header.Offset_Pixels) + 1);
+
       case DIB.Compression is
          when 0 =>
             BMP.Read_Uncompressed_Data
-               (S, Natural (DIB.Image_Size));
+               (S, Area, Color_Table);
          when 1 =>
-            declare
-               Color_Table : Color_Table_Type;
-            begin
-               Color_Table := BMP.Read_Color_Table (S);
-               BMP.Read_RLE8_Data
-                  (S, Natural (DIB.Image_Size), Natural (DIB.Width), Color_Table);
-            end;
+            BMP.Read_RLE8_Data
+               (S,
+                Natural (DIB.Image_Size),
+                Natural (DIB.Width),
+                Natural (DIB.Height),
+                Color_Table);
          when others =>
             raise Invalid_Compression_Value with "Compression value " & DIB.Compression'Image & " is unrecognized.";
       end case;
+
+      --  Close the file
       Ada.Streams.Stream_IO.Close (File);
+
       return BMP;
    end Load_Image;
 
