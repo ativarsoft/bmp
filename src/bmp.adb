@@ -1,15 +1,16 @@
 with Ada.Streams.Stream_IO;
 use Ada.Streams.Stream_IO;
+with Ada.Text_IO;
 
 package body Bmp is
 
-   type BMP_Header_Type is record
+   type BMP_Header_Type is tagged record
       Signature    : Unsigned_16;
       File_Size    : Unsigned_32;
       Offset_Pixels : Unsigned_32;
    end record;
 
-   type DIB_Header_Type is record
+   type DIB_Header_Type is tagged record
       Header_Size : Unsigned_32;
       Width       : Unsigned_32;
       Height      : Unsigned_32;
@@ -19,15 +20,76 @@ package body Bmp is
       Image_Size  : Unsigned_32;
    end record;
 
+   procedure Print (BMP : in out BMP_Header_Type)
+   is
+      use Ada.Text_IO;
+   begin
+      Put_Line ("BMP header:");
+
+      Put ("  ");
+      Put ("Signature           : ");
+      Put_Line (BMP.Signature'Image);
+
+      Put ("  ");
+      Put ("File size           : ");
+      Put_Line (BMP.File_Size'Image);
+
+      Put ("  ");
+      Put ("Offset of pixel data: ");
+      Put_Line (BMP.Offset_Pixels'Image);
+   end Print;
+
+   procedure Print (DIB : in out DIB_Header_Type)
+   is
+      use Ada.Text_IO;
+   begin
+      Put_Line ("DIB header:");
+
+      Put ("  ");
+      Put ("Header size: ");
+      Put_Line (DIB.Header_Size'Image);
+
+      Put ("  ");
+      Put ("Width      : ");
+      Put_Line (DIB.Width'Image);
+
+      Put ("  ");
+      Put ("Height     : ");
+      Put_Line (DIB.Height'Image);
+
+      Put ("  ");
+      Put ("Plane count: ");
+      Put_Line (DIB.Plane_Count'Image);
+
+      Put ("  ");
+      Put ("BPP        : ");
+      Put_Line (DIB.BPP'Image);
+
+      Put ("  ");
+      Put ("Compression: ");
+      Put_Line (DIB.Compression'Image);
+
+      Put ("  ");
+      Put ("Image size : ");
+      Put_Line (DIB.Image_Size'Image);
+   end Print;
+
    function Read_BMP_Header
       (S : Ada.Streams.Stream_IO.Stream_Access)
        return BMP_Header_Type
    is
       BMP_Header : BMP_Header_Type;
+      Next_16    : Unsigned_16;
+      Next_32    : Unsigned_32;
    begin
-      Unsigned_16'Read (S, BMP_Header.Signature);
-      Unsigned_32'Read (S, BMP_Header.File_Size);
-      Unsigned_32'Read (S, BMP_Header.Offset_Pixels);
+      Unsigned_16'Read (S, Next_16);
+      BMP_Header.Signature := Next_16;
+      Unsigned_32'Read (S, Next_32);
+      BMP_Header.File_Size := Next_32;
+      Unsigned_16'Read (S, Next_16); --  Ignore
+      Unsigned_16'Read (S, Next_16); --  Ignore
+      Unsigned_32'Read (S, Next_32);
+      BMP_Header.Offset_Pixels := Next_32;
       return BMP_Header;
    end Read_BMP_Header;
 
@@ -62,9 +124,14 @@ package body Bmp is
    is
       Signature : constant Unsigned_16 := BMP_Header.Signature;
       Valid : Boolean := False;
+      Ignore_Signature : constant Boolean := False;
    begin
       if Signature = 16#4D42# then
          Valid := True;
+      else
+         if Ignore_Signature = True then
+            Valid := True;
+         end if;
       end if;
       return Valid;
    end Check_Signature;
@@ -79,20 +146,28 @@ package body Bmp is
       C             : Unsigned_8;
       S             : Ada.Streams.Stream_IO.Stream_Access;
    begin
+      Ada.Text_IO.Put ("Loading bitmap: ");
+      Ada.Text_IO.Put_Line (Filename);
       Ada.Streams.Stream_IO.Open
          (File, Ada.Streams.Stream_IO.In_File, Filename);
       S := Ada.Streams.Stream_IO.Stream (File);
       BMP_Header := Read_BMP_Header (S);
-      if Check_Signature (BMP_Header) then
+      BMP_Header.Print;
+      if Check_Signature (BMP_Header) = False then
          raise Program_Error with "Invalid bimap signature.";
       end if;
       DIB := Read_DIB_Header (S);
+      DIB.Print;
+      BMP.Width := Natural (DIB.Width);
+      BMP.Height := Natural (DIB.Height);
+      BMP.Plane_Count := Natural (DIB.Plane_Count);
+      BMP.Depth := Natural (DIB.BPP);
       BMP.Data.Reserve_Capacity
          (Ada.Containers.Count_Type (DIB.Image_Size));
       Ada.Streams.Stream_IO.Set_Index
          (File,
           Ada.Streams.Stream_IO.Count (BMP_Header.Offset_Pixels));
-      for I in 0 .. DIB.Image_Size loop
+      for I in 1 .. DIB.Image_Size loop
          Unsigned_8'Read (S, C);
          BMP.Data.Append (C);
       end loop;
@@ -106,5 +181,37 @@ package body Bmp is
    begin
       return BMP.Data;
    end Get_Data;
+
+   function Get_Width
+      (BMP : in out BMP_Type)
+       return Natural
+   is
+   begin
+      return BMP.Width;
+   end Get_Width;
+
+   function Get_Height
+      (BMP : in out BMP_Type)
+       return Natural
+   is
+   begin
+      return BMP.Height;
+   end Get_Height;
+
+   function Get_Plane_Count
+      (BMP : in out BMP_Type)
+       return Natural
+   is
+   begin
+      return BMP.Plane_Count;
+   end Get_Plane_Count;
+
+   function Get_Depth
+      (BMP : in out BMP_Type)
+       return Natural
+   is
+   begin
+      return BMP.Depth;
+   end Get_Depth;
 
 end Bmp;

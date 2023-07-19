@@ -19,10 +19,21 @@ package Bmp is
 
    function Get_Data (BMP : in out BMP_Type) return BMP_Data;
 
+   function Get_Width (BMP : in out BMP_Type) return Natural;
+
+   function Get_Height (BMP : in out BMP_Type) return Natural;
+
+   function Get_Plane_Count (BMP : in out BMP_Type) return Natural;
+
+   function Get_Depth (BMP : in out BMP_Type) return Natural;
+
 private
 
    type BMP_Type is tagged record
-      Data : BMP_Data;
+      Data          : BMP_Data;
+      Width, Height : Natural;
+      Plane_Count   : Natural;
+      Depth         : Natural;
    end record;
 
 end Bmp;
