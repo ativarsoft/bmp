@@ -3,14 +3,13 @@ GNATBIND?=gnatbind
 GNATLINK?=gnatlink
 GNATFLAGS?=
 
-all: libBmp.a
+all: libadabmp.a
 
-libBmp.a: src/*.ad[s,b]
+libadabmp.a: src/*.ad[s,b]
 	mkdir -p obj
 	$(GNAT) $(GNATFLAGS) -c -o obj/bmp.o src/bmp.adb
-	#$(GNATBIND) -n obj/bmp.ali
-	ar cr bmp.a obj/bmp.o
-	ranlib bmp.a
+	ar cr libadabmp.a obj/bmp.o
+	ranlib libadabmp.a
 
 clean:
 	rm -fr obj
@@ -21,5 +20,7 @@ clean:
 	rm -f b~*.ad[b,s]
 	rm -f b~*.ali
 
-.PHONY: all clean
+install:
+
+.PHONY: all clean install
 
